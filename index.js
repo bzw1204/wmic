@@ -4,11 +4,11 @@
   wmic calls must always be serialised in windows, hence the use of async.queue
 */
 var MAX_WORKER_COUNT = 100;
-var execFile = require('child_process').execFile,
-    exec  = require('child_process').exec,
-    async = require('async'),
-    fs    = require('fs'),
-    iconv = require('iconv-lite');
+var execFile = require("child_process").execFile,
+  exec = require("child_process").exec,
+  async = require("async"),
+  fs = require("fs"),
+  iconv = require("iconv-lite");
 
 /**
  * Need to split a command line string taking into account strings - that is, don't
@@ -18,80 +18,79 @@ var execFile = require('child_process').execFile,
 function splitter(cmd) {
   cmd = cmd.trim();
 
-  var acc = [], inString = false, cur = "", l = cmd.length;
+  var acc = [],
+    inString = false,
+    cur = "",
+    l = cmd.length;
 
-  for (var i = 0 ; i < l ; i++ ){
+  for (var i = 0; i < l; i++) {
     var ch = cmd.charAt(i);
-    switch(ch) {
-    case '"':
-      inString = !inString;
-      if (!inString) {
-        if (cur.length > 0) {
-          acc.push(cur);
-          cur = "";
+    switch (ch) {
+      case '"':
+        inString = !inString;
+        if (!inString) {
+          if (cur.length > 0) {
+            acc.push(cur);
+            cur = "";
+          }
         }
-      }
-      break;
-    case ' ':
-      if (inString) {
-        cur += ' ';
-      } else {
-        if (cur.length > 0) {
-          acc.push(cur);
-          cur = "";
+        break;
+      case " ":
+        if (inString) {
+          cur += " ";
+        } else {
+          if (cur.length > 0) {
+            acc.push(cur);
+            cur = "";
+          }
         }
-      }
-      break;
-    default:
-      cur += ch;
-      break;
+        break;
+      default:
+        cur += ch;
+        break;
     }
   }
 
   if (cur.length > 0) acc.push(cur);
   return acc;
-};
+}
 
-
-function parse_list(data){
-
+function parse_list(data) {
   var list = [];
 
-  var blocks = data.split(/\n\n|\n,?\r/g).filter(function(block) {
+  var blocks = data.split(/\n\n|\n,?\r/g).filter(function (block) {
     return block.length > 2;
   });
 
-  blocks.forEach(function(block) {
-    var obj   = {};
-    var lines = block.split(/\n+|\r+/).filter(function(line) {
-      return line.indexOf('=') !== -1
+  blocks.forEach(function (block) {
+    var obj = {};
+    var lines = block.split(/\n+|\r+/).filter(function (line) {
+      return line.indexOf("=") !== -1;
     });
 
-    lines.forEach(function(line) {
-      var kv = line.replace(/^,/, '').split("=");
+    lines.forEach(function (line) {
+      var kv = line.replace(/^,/, "").split("=");
       obj[kv[0]] = kv[1];
-    })
+    });
 
-    if (Object.keys(obj).length > 0)
-      list.push(obj);
-  })
+    if (Object.keys(obj).length > 0) list.push(obj);
+  });
 
   return list;
 }
 
-function parse_values(out){
+function parse_values(out) {
+  var arr = [],
+    data = buildDataArray(out),
+    keys = data[0];
 
-  var arr  = [],
-      data = buildDataArray(out),
-      keys = data[0];
-
-  data.forEach(function(k, i){
-    if(k != keys){
+  data.forEach(function (k, i) {
+    if (k != keys) {
       var obj = {};
 
-      k.forEach(function(l, j){
-        obj[keys[j]] = l
-      })
+      k.forEach(function (l, j) {
+        obj[keys[j]] = l;
+      });
 
       arr.push(obj);
     }
@@ -100,16 +99,16 @@ function parse_values(out){
   return arr;
 }
 
-function buildDataArray(rawInput){
-  var lines = rawInput.toString().trim().split('\n'),
-      data = [],
-      keys = [],
-      linePattern = /(\S*?\s\s+)/g,
-      match;
+function buildDataArray(rawInput) {
+  var lines = rawInput.toString().trim().split("\n"),
+    data = [],
+    keys = [],
+    linePattern = /(\S*?\s\s+)/g,
+    match;
 
   while ((match = linePattern.exec(lines[0])) !== null) {
     if (match.index === linePattern.lastIndex) {
-        linePattern.lastIndex++;
+      linePattern.lastIndex++;
     }
 
     var key = {};
@@ -121,22 +120,22 @@ function buildDataArray(rawInput){
     keys.push(key);
   }
 
-  lines.forEach(function(line, index){
+  lines.forEach(function (line, index) {
     var lineData = [];
 
-    keys.forEach(function(key, jndex){
+    keys.forEach(function (key, jndex) {
       lineData.push(line.substr(key.startPoint, key.keyLength).trim());
-    })
+    });
 
     data.push(lineData);
-  })
+  });
 
   return data;
 }
 
 function get_encoding(stdout) {
-    var codePage = stdout.replace(/\n.*$/s, '').replace(/\D/g, '');
-    return codePage;
+  var codePage = stdout.replace(/\n.*$/s, "").replace(/\D/g, "");
+  return codePage;
 }
 
 exports.get_encoding = get_encoding;
@@ -147,76 +146,83 @@ exports.get_encoding = get_encoding;
  * The resulting output string has an additional pid property added so, one may get the process
  * details. This seems the easiest way of doing so given the run is in a queue.
  **/
-var run = exports.run = function run(cmd, cb) {
+var run = (exports.run = function run(cmd, cb) {
   queue.push(cmd, cb);
-};
+});
 
 // The encoding is cached in this variable, so the CHCP command is executed only once.
 var consoleEncoding;
 
-var queue = async.queue(function(cmd, cb) {
-
-  var opts = { env: process.env, cwd: process.env.TEMP };
-  if (opts.env.PATH.indexOf('system32') === -1) {
-    opts.env.PATH += ';' + process.env.WINDIR + "\\system32";
-    opts.env.PATH += ';' + process.env.WINDIR + "\\system32\\wbem";
+var queue = async.queue(function (cmd, cb) {
+  var opts = {
+    env: process.env,
+    cwd: process.env.TEMP,
+    encoding: consoleEncoding,
+  };
+  if (opts.env.PATH.indexOf("system32") === -1) {
+    opts.env.PATH += ";" + process.env.WINDIR + "\\system32";
+    opts.env.PATH += ";" + process.env.WINDIR + "\\system32\\wbem";
   }
 
   var pid;
 
-  async.parallel([
-      function(cb) {
+  async.parallel(
+    [
+      function (cb) {
         if (consoleEncoding) {
           cb(null, consoleEncoding);
         } else {
-          exec('chcp', function(err, stdout) {
+          exec("chcp", function (err, stdout) {
             if (err) {
               cb(err);
               return;
             }
             var codePage = get_encoding(stdout);
-            consoleEncoding = codePage && codePage !== '65001' ? 'cp' + codePage : 'utf8';
+            consoleEncoding =
+              codePage && codePage !== "65001" ? "cp" + codePage : "utf8";
             cb(null, consoleEncoding);
           });
         }
       },
-      function(cb) {
-        var wm = execFile('wmic', splitter(cmd), opts),
+      function (cb) {
+        var wm = execFile("wmic", splitter(cmd), opts),
           stdout = [],
           stderr = [];
 
         pid = wm.pid;
 
-        wm.on('error', function(e) {
-          if (e.code == 'ENOENT')
-            e.message = 'Unable to find wmic command in path.';
+        wm.on("error", function (e) {
+          if (e.code == "ENOENT")
+            e.message = "Unable to find wmic command in path.";
 
           cb(e);
-        })
+        });
 
-        wm.stdout.on('data', function(d) {
+        wm.stdout.on("data", function (d) {
           // console.log('Got out: ' + d.toString())
           stdout.push(d);
         });
 
-        wm.stderr.on('data', function(e) {
+        wm.stderr.on("data", function (e) {
           // console.log('Got error: ' + e.toString())
           stderr.push(e);
         });
 
-        wm.on('exit', function(code) {
+        wm.on("exit", function (code) {
           // remove weird temp file generated by wmic
-          fs.unlink('TempWmicBatchFile.bat', function() { /* noop */ });
+          fs.unlink("TempWmicBatchFile.bat", function () {
+            /* noop */
+          });
 
-          setImmediate(function() {
+          setImmediate(function () {
             cb(null, [stdout, stderr]);
-          })
+          });
         });
 
         wm.stdin.end();
-      }
+      },
     ],
-    function(err, results) {
+    function (err, results) {
       if (!err) {
         var encoding = results[0];
         var stdoutStr = stringifyBufferArray(results[1][0], encoding);
@@ -226,55 +232,54 @@ var queue = async.queue(function(cmd, cb) {
         }
         cb(err, stdoutStr, pid);
       } else {
-        cb(err, '', pid);
+        cb(err, "", pid);
       }
     }
   );
 
   function stringifyBufferArray(array, encoding) {
-    return array.map(function(buffer) {
-      return iconv.decode(buffer, encoding);
-    }).join(',').replace(/^,/, '').replace(/,\s+$/, '').trim();
+    return array
+      .map(function (buffer) {
+        return iconv.decode(buffer, encoding);
+      })
+      .join(",")
+      .replace(/^,/, "")
+      .replace(/,\s+$/, "")
+      .trim();
   }
-
 }, MAX_WORKER_COUNT);
 
-exports.get_value = function(section, value, condition, cb){
-  var cond = condition ? ' where "' + condition + '" ' : '';
-  var cmd = section + cond + ' get ' + value + ' /value';
+exports.get_value = function (section, value, condition, cb) {
+  var cond = condition ? ' where "' + condition + '" ' : "";
+  var cmd = section + cond + " get " + value + " /value";
 
-  run(cmd, function(err, out){
+  run(cmd, function (err, out) {
     if (err) return cb(err);
 
     var str = out.match(/=(.*)/);
 
-    if (str)
-      cb(null, str[1].trim());
-    else
-      cb(new Error("Wmic: Couldn't get " + value + " in " + section));
-  })
-}
+    if (str) cb(null, str[1].trim());
+    else cb(new Error("Wmic: Couldn't get " + value + " in " + section));
+  });
+};
 
-exports.get_values = function(section, keys, condition, cb){
+exports.get_values = function (section, keys, condition, cb) {
+  var cond = condition ? ' where "' + condition + '" ' : "";
+  var cmd = section + cond + " get " + keys;
 
-  var cond = condition ? ' where "' + condition + '" ' : '';
-  var cmd = section + cond + ' get ' + keys;
-
-  run(cmd, function(err, out){
+  run(cmd, function (err, out) {
     if (err) return cb(err);
     cb(null, parse_values(out));
   });
-
 };
-
 
 /**
  * Calls back an array of objects for the given command.
  *
  * This only works for alias commands with a LIST clause.
  **/
-exports.get_list = function(cmd, callback) {
-  run(cmd + ' list full', function(err, data) {
+exports.get_list = function (cmd, callback) {
+  run(cmd + " list full", function (err, data) {
     if (err) return callback(err);
     callback(null, parse_list(data));
   });

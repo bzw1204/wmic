@@ -1,11 +1,12 @@
 # wmic
 
 Wrapper around the Windows WMIC interface for Node.js.
+解决了中文乱码问题
 
 ## Example
 
     var wmic = require('wmic');
-    
+
     // equivalent of 'wmic nic get list'
     wmic.get_list('nic', function(err, nics) {
       // console.log(err || nics);
@@ -32,7 +33,7 @@ Returns an array of values from wmic, for example to list hard drives:
 ## Credits
 
 Written by Tomas Pollak, with the help of contributors.
-    
+
 ## Small print
 
 (c) Fork Ltd, MIT licensed.
